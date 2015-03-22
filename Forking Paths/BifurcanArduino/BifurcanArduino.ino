@@ -12,6 +12,25 @@
 U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_NONE);	// I2C / TWI 
 
 
+
+
+
+uint16_t DIGITS[10] = {
+  (1<<0 | 1<< 1 | 1<<2 | 1<<3 | 1 << 5 | 1 << 6 | 1 << 8 | 1 << 9 | 1 << 11 | 1 << 12 | 1 << 13 | 1 << 14),  // 0 
+  (1<<1 | 1<<4 | 1<<7 | 1<<10 | 1<<13) ,   // 1
+  (1<<0 | 1<< 1 | 1<<2 | 1 << 5 | 1<<6 | 1<<7 |  1 << 8 | 1 << 9 | 1 << 12 | 1 << 13 | 1 << 14),  // 2
+  (1<<0 | 1<< 1 | 1<<2 | 1<<5 | 1 << 6| 1 << 7 | 1 << 8 | 1<<11 | 1 << 12 | 1 << 13 | 1 << 14),  // 3 
+
+  (1<<0 | 1<< 2 | 1<<3 | 1<<5 | 1 << 6 | 1 << 7 | 1 << 8 | 1 << 11 | 1 << 14 ),  // 4
+  (1<<0 | 1<< 1 | 1<<2 | 1<<3 | 1 << 6 | 1 << 7 | 1 << 8 | 1 << 11 | 1 << 12 | 1 << 13 | 1 << 14),  // 5
+
+  (1<<0 | 1<< 1 | 1<<2 | 1<<3 | 1 << 6 | 1 << 7 | 1 << 8 | 1 << 9 | 1 << 11 | 1 << 12 | 1 << 13 | 1 << 14),  // 6 
+  (1<<0 | 1<< 1 | 1<<2 | 1<<5 | 1 << 8 | 1 << 11 | 1 << 14),  // 7
+  (1<<0 | 1<< 1 | 1<<2 | 1<<3 | 1 << 5 | 1 << 6 | 1 << 7 | 1 << 8 | 1 << 9 | 1 << 11 | 1 << 12 | 1 << 13 | 1 << 14),  // 8
+  (1<<0 | 1<< 1 | 1<<2 | 1<<3 | 1 << 5 | 1 << 6 | 1 << 7 | 1 << 8  | 1 << 11 | 1 << 12 | 1 << 13 | 1 << 14),  // 9
+};
+
+
 class ScreenState {
 public:
   uint8_t w,h;
@@ -21,6 +40,9 @@ public:
   uint8_t padding_w, padding_h;
 
   uint8_t *screen_buf;
+
+  uint8_t digits[6];
+
 
   ScreenState(uint8_t w_, uint8_t h_, uint8_t w_logical_, uint8_t h_logical_, uint8_t pixel_pitch_): 
     w(w_), h(h_), w_logical(w_logical_), h_logical(h_logical_), pixel_pitch(pixel_pitch_)
@@ -37,49 +59,25 @@ public:
     uint16_t i, j, k;
     uint8_t lx,ly;
     uint8_t sx,sy;
+    uint8_t line_step = 3;
 
 
-    for (i = 0; i < w_logical*h_logical; i++) {
-      j = i / 8;
+    for (i = 0; i < 6; i++) {
+      j = DIGITS[ digits[i] ];
 
-      k = i % 8;
-#if 0
-      Serial.print("draw ");
-      Serial.print(i);
-      Serial.print(" ");
-      Serial.print(j);
-      Serial.print(";");
-      Serial.print(k);
-      Serial.println(" ");
-#endif
+      for (k = 0; k < 16; k++) {
+	if (j & (1<<k)) {
+	  lx = k % 3;
+	  ly = k / 3;
 
+	  sy = h -( padding_h + pixel_pitch*(lx + 4*(i%2)) + pixel_pitch);
+	  sx = padding_w + pixel_pitch*(ly + 6*(i/2));
 
-      if ( (screen_buf[j] & (1<<k)) ) {
-	lx = i % w_logical;
-	ly = i / w_logical;
-
-
-	sx = padding_w + pixel_pitch*lx;
-	sy = padding_h + pixel_pitch*ly;
-#if 0
-	Serial.print("draw ");
-	Serial.print(i);
-	Serial.print(" ");
-	Serial.print(lx);
-	Serial.print(",");
-	Serial.print(ly);
-	Serial.print(" ");
-	Serial.print(sx);
-	Serial.print(" ");
-	Serial.print(sy);
-	Serial.println(" ");
-#endif
-
-
-	u8g.drawBox(sx, sy, pixel_pitch, pixel_pitch);
+	  u8g.drawBox(sx, sy, pixel_pitch, pixel_pitch);
+	}
       }
     }
-  }
+ }
 
   void clear_buffer() {
     memset(screen_buf, 0, (w_logical*h_logical/8 + 1));
@@ -101,25 +99,43 @@ public:
 };
 
 
+class WallClock {
+public:
+  uint8_t hh,mm,ss;
 
-ScreenState ss(128, 64, 21, 10, 6);
+  WallClock(uint8_t hh_, uint8_t mm_, uint8_t ss_) : hh(hh_), mm(mm_), ss(ss_) { };
+
+  void tick() {
+    ss++;
+
+    tick_fixup();
+  }
+
+  void tick_fixup() {
+
+    if (ss >= 60) {
+      ss = 0;
+
+      mm++;
+
+      if (mm >= 60) {
+	mm = 0;
+	hh++;
+
+	if (hh >= 24)
+	  hh = 0;
+      }
+    }
+  }
+};
+
+
+ScreenState ss(128, 64, 17, 7, 6);
+WallClock wc(19, 59, 0);
+
 
 uint8_t draw_state = 0;
 uint8_t span = 3;
-
-uint8_t DIGITS[10] = {
-  (1<<0 | 1<< 1 | 1<<2 | 1<<3 | 1 << 5 | 1 << 8 | 1 << 9 | 1 << 11 | 1 << 12 | 1 << 13 | 1 << 14),  // 0 
-  (1<<1 | 1<<4 | 1<<7) ,   // 1
-  (1<<0 | 1<< 1 | 1<<2 | 1 << 5 | 1<<6, 1<<7, 1 << 8 | 1 << 9 || 1 << 12 | 1 << 13 | 1 << 14),  // 2
-  (1<<0 | 1<< 1 | 1<<2 | 1<<5 | 1 << 6| 1 << 7 | 1 << 8 | 1 << 11 | 1 << 12 | 1 << 13 | 1 << 14),  // 3 
-
-  (1<<0 | 1<< 1 | 1<<2 | 1<<3 | 1 << 5 | 1 << 8 | 1 << 9 | 1 << 11 | 1 << 12 | 1 << 13 | 1 << 14),  // 4
-  (1<<0 | 1<< 1 | 1<<2 | 1<<3 | 1 << 5 | 1 << 8 | 1 << 9 | 1 << 11 | 1 << 12 | 1 << 13 | 1 << 14),  // 5
-  (1<<0 | 1<< 1 | 1<<2 | 1<<3 | 1 << 5 | 1 << 8 | 1 << 9 | 1 << 11 | 1 << 12 | 1 << 13 | 1 << 14),  // 6 
-  (1<<0 | 1<< 1 | 1<<2 | 1<<3 | 1 << 5 | 1 << 8 | 1 << 9 | 1 << 11 | 1 << 12 | 1 << 13 | 1 << 14),  // 7
-  (1<<0 | 1<< 1 | 1<<2 | 1<<3 | 1 << 5 | 1 << 8 | 1 << 9 | 1 << 11 | 1 << 12 | 1 << 13 | 1 << 14),  // 8
-  (1<<0 | 1<< 1 | 1<<2 | 1<<3 | 1 << 5 | 1 << 8 | 1 << 9 | 1 << 11 | 1 << 12 | 1 << 13 | 1 << 14),  // 9
-};
 
 void u8g_prepare(void) {
   u8g.setDefaultForegroundColor();
@@ -149,29 +165,38 @@ void setup(void) {
   digitalWrite(13, HIGH);  
 }
 
+
+
+uint32_t last_millis = millis();
 void loop(void) {
-  Serial.println("Loop.");
-  digitalWrite(13, !digitalRead(13));
-  delay(50);
-  digitalWrite(13, !digitalRead(13));
-  delay(50);
-  digitalWrite(13, !digitalRead(13));
-  delay(50);
-  digitalWrite(13, !digitalRead(13));
-  delay(50);
+
+
+  ss.digits[0] = wc.hh / 10;
+  ss.digits[1] = wc.hh % 10;
+
+  ss.digits[2] = wc.mm / 10;
+  ss.digits[3] = wc.mm % 10;
+
+  ss.digits[4] = wc.ss / 10;
+  ss.digits[5] = wc.ss % 10;
 
   u8g_prepare();
   u8g.firstPage();
   do {
     draw();
     digitalWrite(13, !digitalRead(13));
-  
   } while ( u8g.nextPage() );
 
 
+  uint32_t m = millis();
+  if ( (m > (last_millis+1000)) || (m < last_millis) )
+    wc.tick();
 
-  ss.clear_bit(draw_state % 21, draw_state / 21);
-  draw_state = (draw_state+1)%210;
-  ss.set_bit(draw_state % 21, draw_state / 21);
+  // wc.tick();
+
+  wc.ss = (millis() / 1000 + 58) % 60 + 1;
+  wc.tick_fixup();
+  
+  last_millis = m;
 
 }
