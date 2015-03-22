@@ -42,6 +42,8 @@ public:
   uint8_t *screen_buf;
 
   uint8_t digits[6];
+  uint8_t line_step;
+
 
 
   ScreenState(uint8_t w_, uint8_t h_, uint8_t w_logical_, uint8_t h_logical_, uint8_t pixel_pitch_): 
@@ -51,7 +53,37 @@ public:
     padding_w  = (w - w_logical*pixel_pitch)/2;
     padding_h  = (h - h_logical*pixel_pitch)/2;
 
+    line_step = 3;
+
     clear_buffer();
+  }
+
+
+  void box_right(uint8_t sx, uint8_t sy) {
+    uint8_t i;
+
+    for (i = 0; i < pixel_pitch; i += line_step) {
+      u8g.drawLine(sx, sy+i, sx+pixel_pitch-i-1, sy+pixel_pitch-1);
+    }
+
+    for (i = line_step; i < pixel_pitch; i += line_step) {
+      u8g.drawLine(sx+i, sy, sx+pixel_pitch-1, sy+pixel_pitch-i-1);
+    }
+
+  }
+
+  void box_left(uint8_t sx, uint8_t sy) {
+    uint8_t i;
+
+    for (i = 0; i < pixel_pitch; i += line_step) {
+      u8g.drawLine(sx, sy+pixel_pitch-i-1, sx+pixel_pitch-i-1, sy);
+    }
+
+    for (i = line_step; i < pixel_pitch; i += line_step) {
+
+    }
+
+
   }
 
 
@@ -59,24 +91,46 @@ public:
     uint16_t i, j, k;
     uint8_t lx,ly;
     uint8_t sx,sy;
-    uint8_t line_step = 3;
-
+    int dx,dy;
 
     for (i = 0; i < 6; i++) {
       j = DIGITS[ digits[i] ];
 
       for (k = 0; k < 16; k++) {
+	lx = k % 3;
+	ly = k / 3;
+
+	sy = h -( padding_h + pixel_pitch*(lx + 4*(i%2)) + pixel_pitch);
+	sx = padding_w + pixel_pitch*(ly + 6*(i/2));
+
 	if (j & (1<<k)) {
-	  lx = k % 3;
-	  ly = k / 3;
-
-	  sy = h -( padding_h + pixel_pitch*(lx + 4*(i%2)) + pixel_pitch);
-	  sx = padding_w + pixel_pitch*(ly + 6*(i/2));
-
-	  u8g.drawBox(sx, sy, pixel_pitch, pixel_pitch);
+	  // u8g.drawBox(sx, sy, pixel_pitch, pixel_pitch);
+	  box_left(sx, sy);
+	} else {
+	  box_right(sx, sy);
 	}
       }
     }
+    
+    for (k = 3; k < 144; k += 4) {
+      	lx = k % 8;
+	ly = k / 8;
+
+	sy = h -( padding_h + pixel_pitch*(lx) + pixel_pitch);
+	sx = padding_w + pixel_pitch*(ly);
+	
+	box_right(sx,sy);
+	  
+    } 
+
+    for (ly = 5; ly < w_logical; ly += 6) {
+      for (lx = 0; lx < h_logical; lx++) {
+	sy = h -( padding_h + pixel_pitch*(lx) + pixel_pitch);
+	sx = padding_w + pixel_pitch*(ly);
+	
+	box_right(sx,sy);
+      }
+    } 
  }
 
   void clear_buffer() {
