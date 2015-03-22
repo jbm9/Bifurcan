@@ -39,8 +39,6 @@ public:
 
   uint8_t padding_w, padding_h;
 
-  uint8_t *screen_buf;
-
   uint8_t digits[6];
   uint8_t line_step;
 
@@ -49,13 +47,10 @@ public:
   ScreenState(uint8_t w_, uint8_t h_, uint8_t w_logical_, uint8_t h_logical_, uint8_t pixel_pitch_): 
     w(w_), h(h_), w_logical(w_logical_), h_logical(h_logical_), pixel_pitch(pixel_pitch_)
   {
-    screen_buf = (uint8_t*) malloc(w_logical*h_logical/8 + 1);
     padding_w  = (w - w_logical*pixel_pitch)/2;
     padding_h  = (h - h_logical*pixel_pitch)/2;
 
     line_step = 3;
-
-    clear_buffer();
   }
 
 
@@ -80,7 +75,7 @@ public:
     }
 
     for (i = line_step; i < pixel_pitch; i += line_step) {
-
+      u8g.drawLine(sx+i, sy+pixel_pitch-1, sx+pixel_pitch-1, sy+pixel_pitch-i);
     }
 
 
@@ -100,8 +95,8 @@ public:
 	lx = k % 3;
 	ly = k / 3;
 
-	sy = h -( padding_h + pixel_pitch*(lx + 4*(i%2)) + pixel_pitch);
-	sx = padding_w + pixel_pitch*(ly + 6*(i/2));
+	sy = h -( padding_h + pixel_pitch*(lx + 4*(i%2) + 1) + pixel_pitch);
+	sx = padding_w + pixel_pitch*(ly + 6*(i/2) + 1);
 
 	if (j & (1<<k)) {
 	  // u8g.drawBox(sx, sy, pixel_pitch, pixel_pitch);
@@ -112,44 +107,30 @@ public:
       }
     }
     
-    for (k = 3; k < 144; k += 4) {
-      	lx = k % 8;
-	ly = k / 8;
 
+    for (lx = 0; lx < h_logical; lx += 4) {
+      for (ly = 0; ly < w_logical; ly++) {
 	sy = h -( padding_h + pixel_pitch*(lx) + pixel_pitch);
 	sx = padding_w + pixel_pitch*(ly);
 	
 	box_right(sx,sy);
-	  
+      }  
     } 
 
-    for (ly = 5; ly < w_logical; ly += 6) {
+    for (ly = 0; ly < w_logical; ly += 6) {
       for (lx = 0; lx < h_logical; lx++) {
 	sy = h -( padding_h + pixel_pitch*(lx) + pixel_pitch);
 	sx = padding_w + pixel_pitch*(ly);
 	
 	box_right(sx,sy);
       }
-    } 
+    }
+
+
+    u8g.drawPixel(padding_w, padding_h+h_logical*pixel_pitch-1);
+    u8g.drawPixel(padding_w+w_logical*pixel_pitch-1, padding_h);
+
  }
-
-  void clear_buffer() {
-    memset(screen_buf, 0, (w_logical*h_logical/8 + 1));
-  }
-
-  void set_bit(uint8_t x,uint8_t y) {
-    int i = (w_logical*y + x) / 8;
-    int j = (w_logical*y + x) % 8;
-
-    screen_buf[i] |= (1<<j);
-  }
-
-  void clear_bit(uint8_t x, uint8_t y) {
-    int i = (w_logical*y + x) / 8;
-    int j = (w_logical*y + x) % 8;
-
-    screen_buf[i] &= ~(1<<j);
-  }
 };
 
 
@@ -184,7 +165,7 @@ public:
 };
 
 
-ScreenState ss(128, 64, 17, 7, 6);
+ScreenState ss(128, 64, 19, 9, 6);
 WallClock wc(19, 59, 0);
 
 
@@ -248,7 +229,8 @@ void loop(void) {
 
   // wc.tick();
 
-  wc.ss = (millis() / 1000 + 58) % 60 + 1;
+  wc.ss = (millis() / 1000 + 58) % 60;
+  if (wc.ss == 0) wc.ss = 60;
   wc.tick_fixup();
   
   last_millis = m;
