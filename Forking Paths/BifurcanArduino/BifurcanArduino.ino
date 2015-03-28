@@ -9,7 +9,13 @@
 
 #include "U8glib.h"
 
+#include <Wire.h>
+#include "RTClib.h"
+
+
 U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_NONE);	// I2C / TWI 
+
+RTC_DS1307 rtc;
 
 
 
@@ -55,6 +61,7 @@ public:
 
 
   void box_right(uint8_t sx, uint8_t sy) {
+    return;		
     uint8_t i;
 
     for (i = 0; i < pixel_pitch; i += line_step) {
@@ -134,6 +141,8 @@ public:
 };
 
 
+
+
 class WallClock {
 public:
   uint8_t hh,mm,ss;
@@ -196,6 +205,13 @@ int i;
 
 void setup(void) {
   Serial.begin(9600);
+  rtc.begin();
+
+  if (!rtc.isrunning()) {
+    Serial.println("RTC not running.");
+  }
+
+  rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
   pinMode(13, OUTPUT);           
   digitalWrite(13, HIGH);  
 }
@@ -214,25 +230,33 @@ void loop(void) {
 
   ss.digits[4] = wc.ss / 10;
   ss.digits[5] = wc.ss % 10;
-
+  
   u8g_prepare();
   u8g.firstPage();
   do {
     draw();
     digitalWrite(13, !digitalRead(13));
   } while ( u8g.nextPage() );
+  u8g_i2c_stop();
 
+  delay(50);
 
-  uint32_t m = millis();
-  if ( (m > (last_millis+1000)) || (m < last_millis) )
-    wc.tick();
+  //  rtc.begin();
+  DateTime now = rtc.now();
+  now = rtc.now();
+  Serial.println(now.unixtime(), 10);
 
-  // wc.tick();
+  if (now.hour() < 24) {
+    wc.hh = now.hour();
+    Serial.print(wc.hh, 10);
+    Serial.print(':');
+    wc.mm = now.minute();
+    Serial.print(wc.mm, 10);
+    Serial.print(':');
 
-  wc.ss = (millis() / 1000 + 58) % 60;
-  if (wc.ss == 0) wc.ss = 60;
-  wc.tick_fixup();
-  
-  last_millis = m;
-
+    wc.ss = now.second();
+    Serial.print(wc.ss, 10);
+    Serial.println(' ');
+  }
+  //  delay(100);
 }
