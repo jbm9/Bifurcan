@@ -49,7 +49,6 @@ public:
   uint8_t line_step;
 
 
-
   ScreenState(uint8_t w_, uint8_t h_, uint8_t w_logical_, uint8_t h_logical_, uint8_t pixel_pitch_): 
     w(w_), h(h_), w_logical(w_logical_), h_logical(h_logical_), pixel_pitch(pixel_pitch_)
   {
@@ -106,7 +105,6 @@ public:
 	sx = padding_w + pixel_pitch*(ly + 6*(i/2) + 1);
 
 	if (j & (1<<k)) {
-	  // u8g.drawBox(sx, sy, pixel_pitch, pixel_pitch);
 	  box_left(sx, sy);
 	} else {
 	  box_right(sx, sy);
@@ -143,43 +141,10 @@ public:
 
 
 
-class WallClock {
-public:
-  uint8_t hh,mm,ss;
+ScreenState screen(128, 64, 19, 9, 6);
 
-  WallClock(uint8_t hh_, uint8_t mm_, uint8_t ss_) : hh(hh_), mm(mm_), ss(ss_) { };
+uint8_t hh,mm,ss;
 
-  void tick() {
-    ss++;
-
-    tick_fixup();
-  }
-
-  void tick_fixup() {
-
-    if (ss >= 60) {
-      ss = 0;
-
-      mm++;
-
-      if (mm >= 60) {
-	mm = 0;
-	hh++;
-
-	if (hh >= 24)
-	  hh = 0;
-      }
-    }
-  }
-};
-
-
-ScreenState ss(128, 64, 19, 9, 6);
-WallClock wc(19, 59, 0);
-
-
-uint8_t draw_state = 0;
-uint8_t span = 3;
 
 void u8g_prepare(void) {
   u8g.setDefaultForegroundColor();
@@ -187,33 +152,63 @@ void u8g_prepare(void) {
 
 
 void draw(void) {
+  screen.draw();
+}
 
-  ss.draw();
-  /*
-int i;
-  
-  int x0,y0, x1,y1;
-  
-  for (i = draw_state; i < SCREENHEIGHT; i += span) {
-    u8g.drawLine(0, i, SCREENHEIGHT-i, SCREENHEIGHT);
+void poll_rtc(void) {
+  rtc.begin();
+  DateTime now = rtc.now();
+
+  //  Serial.println("Polling RTC");
+
+  while (now.hour() >= 24) {
+    digitalWrite(13, !digitalRead(13));
+    delay(10);
+    now = rtc.now();
   }
 
-  for (i = draw_state; i < SCREENWIDTH; i += span) {
-    u8g.drawLine(i, 0, i+SCREENHEIGHT, SCREENHEIGHT);
-    }*/
+  hh = now.hour();
+  mm = now.minute();
+  ss = now.second();
+
+#if 0
+  Serial.println(now.unixtime(), 10);
+  Serial.print(hh, 10);
+  Serial.print(':');
+  Serial.print(mm, 10);
+  Serial.print(':');
+  Serial.print(ss, 10);
+  Serial.println(' ');
+#endif
 }
 
 void setup(void) {
   Serial.begin(9600);
+  pinMode(13, OUTPUT);           
+
+  /*  while (!Serial) {
+    digitalWrite(13, HIGH);
+    delay(100);
+    digitalWrite(13, LOW);
+    delay(100);
+
+    }; */
+
+
+  Serial.println("Starting up...");
+
+
   rtc.begin();
 
-  if (!rtc.isrunning()) {
-    Serial.println("RTC not running.");
+
+  while (!rtc.isrunning()) {
+    //    Serial.println("RTC not running.");
+    delay(50);
   }
 
   rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
-  pinMode(13, OUTPUT);           
-  digitalWrite(13, HIGH);  
+
+  poll_rtc();
 }
 
 
@@ -222,14 +217,14 @@ uint32_t last_millis = millis();
 void loop(void) {
 
 
-  ss.digits[0] = wc.hh / 10;
-  ss.digits[1] = wc.hh % 10;
+  screen.digits[0] = hh / 10;
+  screen.digits[1] = hh % 10;
 
-  ss.digits[2] = wc.mm / 10;
-  ss.digits[3] = wc.mm % 10;
+  screen.digits[2] = mm / 10;
+  screen.digits[3] = mm % 10;
 
-  ss.digits[4] = wc.ss / 10;
-  ss.digits[5] = wc.ss % 10;
+  screen.digits[4] = ss / 10;
+  screen.digits[5] = ss % 10;
   
   u8g_prepare();
   u8g.firstPage();
@@ -241,22 +236,5 @@ void loop(void) {
 
   delay(50);
 
-  //  rtc.begin();
-  DateTime now = rtc.now();
-  now = rtc.now();
-  Serial.println(now.unixtime(), 10);
-
-  if (now.hour() < 24) {
-    wc.hh = now.hour();
-    Serial.print(wc.hh, 10);
-    Serial.print(':');
-    wc.mm = now.minute();
-    Serial.print(wc.mm, 10);
-    Serial.print(':');
-
-    wc.ss = now.second();
-    Serial.print(wc.ss, 10);
-    Serial.println(' ');
-  }
-  //  delay(100);
+  poll_rtc();
 }
